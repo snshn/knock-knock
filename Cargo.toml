@@ -1,0 +1,15 @@
+[package]
+name = "knock-knock"
+version = "0.1.0"
+authors = ["Sunshine <sunshine@uberspace.net>"]
+edition = "2018"
+
+[dependencies]
+chrono = "0.4.19"
+whois-rust = "1.2.4"
+whoisthere = { path = "../whoisthere.git" }
+
+[dependencies.clap]
+version = "2.33.3"
+default-features = false
+features = [ "suggestions" ]
