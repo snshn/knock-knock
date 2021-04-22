@@ -1,7 +1,5 @@
 #[macro_use]
 extern crate clap;
-extern crate whois_rust;
-// extern crate whoisthere;
 
 use chrono::{DateTime, Duration, Utc};
 use clap::{App, Arg};
@@ -19,11 +17,9 @@ const INDENTATION: &'static str = "    ";
 
 fn pluralize(item_name: &str, quantity: i64) -> String {
     let mut result = String::from(item_name);
-
     if quantity != 1 {
         result += "s";
     }
-
     result
 }
 
@@ -81,19 +77,22 @@ fn format_expires_in_message(mut duration: Duration) -> String {
     }
 
     result += &vec.join(", ");
-
     result += ANSI_COLOR_RESET;
-
     result
 }
 
-pub fn get_domain_info(domain_name: &str) -> DomainProps {
-    let whois: WhoIs = WhoIs::from_path("./servers.json").unwrap();
-    let result: String = whois
-        .lookup(WhoIsLookupOptions::from_string(domain_name).unwrap())
-        .unwrap();
+pub fn get_domain_info(domain_name: &str) -> Result<DomainProps, std::fmt::Error> {
+    static JSON: &str = include_str!("servers.json");
+    let whois: WhoIs = WhoIs::from_string(JSON).unwrap();
 
-    return parse_info(&domain_name, &result);
+    match whois.lookup(WhoIsLookupOptions::from_string(domain_name).unwrap()) {
+        Ok(result) => {
+            Ok(parse_info(&domain_name, &result))
+        },
+        Err(_e) => {
+            Err(std::fmt::Error)
+        }
+    }
 }
 
 fn main() {
@@ -102,46 +101,60 @@ fn main() {
         .author(format!("\n{}", crate_authors!("\n")).as_str())
         .about(crate_description!())
         .arg(
-            Arg::with_name("config")
+            Arg::with_name("certificates")
                 .short("c")
                 .long("check-certificates"),
         )
         .arg(
-            Arg::with_name("INPUT")
-                .help("Sets the input file to use")
+            Arg::with_name("DOMAINS")
+                .help("Provides domain(s) to look up information for")
                 .required(true)
                 .multiple(true)
                 .index(1),
         )
-        .arg(
-            Arg::with_name("v")
-                .short("v")
-                .multiple(true)
-                .help("Sets the level of verbosity"),
-        )
         .get_matches();
 
-    let iterator = matches.values_of("INPUT");
+    let iterator = matches.values_of("DOMAINS");
     for domain_name in iterator.unwrap() {
-        let now: DateTime<Utc> = DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
         println!("{}:", domain_name);
-        let domain_whois_info: DomainProps = get_domain_info(domain_name);
-        if domain_whois_info.is_registered {
-            let expires_in = domain_whois_info
-                .expiration_date
-                .parse::<DateTime<Utc>>()
-                .unwrap()
-                - now;
-            println!(
-                "{}Expires in: {}",
-                INDENTATION,
-                format_expires_in_message(expires_in)
-            );
-        } else {
-            println!(
-                "{}{}Domain not registered.{}",
-                INDENTATION, ANSI_COLOR_GREEN, ANSI_COLOR_RESET
-            );
+        match get_domain_info(domain_name) {
+            Ok(domain_whois_info) => {
+                if domain_whois_info.is_registered {
+                    match domain_whois_info.expiration_date.parse::<DateTime<Utc>>() {
+                        Ok(expiration_date) => {
+                            let now: DateTime<Utc> = DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
+                            println!(
+                                "{}Domain name registration expires in: {}",
+                                INDENTATION,
+                                format_expires_in_message(expiration_date - now)
+                            );
+                        },
+                        Err(_e) => {
+                            println!(
+                                "{}{}ERROR: Unable to obtain domain name expiration date{}",
+                                INDENTATION,
+                                ANSI_COLOR_RED,
+                                ANSI_COLOR_RESET,
+                            );
+                        }
+                    }
+                } else {
+                    println!(
+                        "{}{}Domain name not registered{}",
+                        INDENTATION,
+                        ANSI_COLOR_GREEN,
+                        ANSI_COLOR_RESET,
+                    );
+                }
+            },
+            Err(_e) => {
+                println!(
+                    "{}{}ERROR: Unable to obtain domain name information{}",
+                    INDENTATION,
+                    ANSI_COLOR_RED,
+                    ANSI_COLOR_RESET,
+                );
+            },
         }
     }
 }
