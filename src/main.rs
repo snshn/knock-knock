@@ -23,62 +23,41 @@ fn pluralize(item_name: &str, quantity: i64) -> String {
     result
 }
 
-fn format_expires_in_message(mut duration: Duration) -> String {
-    let is_warning = duration.num_seconds() <= EXPIRATION_WARNING;
-    let is_critical = duration.num_seconds() <= EXPIRATION_CRITICAL;
-    let mut result = String::new();
-
-    if is_warning {
-        result += ANSI_COLOR_YELLOW;
-    } else if is_critical {
-        result += ANSI_COLOR_RED;
-    } else {
-        result += ANSI_COLOR_GREEN;
+fn compose_readable_duration(mut duration: Duration) -> String {
+    let is_neg: bool = duration.num_milliseconds() < 0;
+    if is_neg {
+        duration = duration * -1;
     }
 
     let mut vec: Vec<String> = Vec::new();
 
-    if duration.num_days() > 0 {
-        let days: String = format!(
-            "{} {}",
-            duration.num_days(),
-            pluralize("day", duration.num_days()),
-        );
-        vec.push(days);
-        duration = duration - Duration::days(duration.num_days());
+    let days = duration.num_days();
+    if days > 0 {
+        let days_str: String = format!("{} {}", days, pluralize("day", days));
+        vec.push(days_str);
+        duration = duration - Duration::days(days);
     }
 
-    if duration.num_hours() > 0 {
-        let hours: String = format!(
-            "{} {}",
-            duration.num_hours(),
-            pluralize("hour", duration.num_hours()),
-        );
-        vec.push(hours);
-        duration = duration - Duration::hours(duration.num_hours());
+    let hours_left = duration.num_hours();
+    if hours_left > 0 {
+        let hours_str: String = format!("{} {}", hours_left, pluralize("hour", hours_left));
+        vec.push(hours_str);
+        duration = duration - Duration::hours(hours_left);
     }
 
-    if duration.num_minutes() > 0 {
-        let minutes: String = format!(
-            "{} {}",
-            duration.num_minutes(),
-            pluralize("minute", duration.num_minutes()),
-        );
-        vec.push(minutes);
-        duration = duration - Duration::minutes(duration.num_minutes());
+    let minutes_left = duration.num_minutes();
+    if minutes_left > 0 {
+        let minutes_str: String = format!("{} {}", minutes_left, pluralize("minute", minutes_left));
+        vec.push(minutes_str);
+        duration = duration - Duration::minutes(minutes_left);
     }
 
-    if duration.num_seconds() > 0 {
-        vec.push(format!(
-            "{} {}",
-            duration.num_seconds(),
-            pluralize("second", duration.num_seconds()),
-        ));
+    let seconds_left = duration.num_seconds();
+    if seconds_left > 0 {
+        vec.push(format!("{} {}", seconds_left, pluralize("second", seconds_left)));
     }
 
-    result += &vec.join(", ");
-    result += ANSI_COLOR_RESET;
-    result
+    vec.join(", ")
 }
 
 pub fn get_domain_info(domain_name: &str) -> Result<DomainProps, std::fmt::Error> {
@@ -86,12 +65,8 @@ pub fn get_domain_info(domain_name: &str) -> Result<DomainProps, std::fmt::Error
     let whois: WhoIs = WhoIs::from_string(JSON).unwrap();
 
     match whois.lookup(WhoIsLookupOptions::from_string(domain_name).unwrap()) {
-        Ok(result) => {
-            Ok(parse_info(&domain_name, &result))
-        },
-        Err(_e) => {
-            Err(std::fmt::Error)
-        }
+        Ok(result) => Ok(parse_info(&domain_name, &result)),
+        Err(_e) => Err(std::fmt::Error),
     }
 }
 
@@ -122,39 +97,65 @@ fn main() {
                 if domain_whois_info.is_registered {
                     match domain_whois_info.expiration_date.parse::<DateTime<Utc>>() {
                         Ok(expiration_date) => {
-                            let now: DateTime<Utc> = DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
-                            println!(
-                                "{}Domain name registration expires in: {}",
-                                INDENTATION,
-                                format_expires_in_message(expiration_date - now)
-                            );
-                        },
+                            let now: DateTime<Utc> =
+                                DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
+                            let time_diff: Duration = expiration_date - now;
+
+                            let is_neg: bool = time_diff.num_milliseconds() < 0;
+                            let seconds: i64 = time_diff.num_seconds();
+                            let is_warning: bool = seconds <= EXPIRATION_WARNING;
+                            let is_critical: bool = seconds <= EXPIRATION_CRITICAL;
+                            let color;
+
+                            if is_neg {
+                                color = ANSI_COLOR_RED;
+                            } else {
+                                if is_warning {
+                                    color = ANSI_COLOR_YELLOW;
+                                } else if is_critical {
+                                    color = ANSI_COLOR_RED;
+                                } else {
+                                    color = ANSI_COLOR_GREEN;
+                                }
+                            }
+                            if expiration_date >= now {
+                                println!(
+                                    "{}Domain name will expire in {}{}{}",
+                                    INDENTATION,
+                                    color,
+                                    compose_readable_duration(time_diff),
+                                    ANSI_COLOR_RESET,
+                                );
+                            } else {
+                                println!(
+                                    "{}Domain name has expired {}{}{} ago",
+                                    INDENTATION,
+                                    color,
+                                    compose_readable_duration(time_diff),
+                                    ANSI_COLOR_RESET,
+                                );
+                            }
+                        }
                         Err(_e) => {
                             println!(
-                                "{}{}ERROR: Unable to obtain domain name expiration date{}",
-                                INDENTATION,
-                                ANSI_COLOR_RED,
-                                ANSI_COLOR_RESET,
+                                "{}{}Unable to obtain domain name expiration date{}",
+                                INDENTATION, ANSI_COLOR_RED, ANSI_COLOR_RESET,
                             );
                         }
                     }
                 } else {
                     println!(
                         "{}{}Domain name not registered{}",
-                        INDENTATION,
-                        ANSI_COLOR_GREEN,
-                        ANSI_COLOR_RESET,
+                        INDENTATION, ANSI_COLOR_GREEN, ANSI_COLOR_RESET,
                     );
                 }
-            },
+            }
             Err(_e) => {
                 println!(
-                    "{}{}ERROR: Unable to obtain domain name information{}",
-                    INDENTATION,
-                    ANSI_COLOR_RED,
-                    ANSI_COLOR_RESET,
+                    "{}{}Unable to retrieve domain whois information{}",
+                    INDENTATION, ANSI_COLOR_RED, ANSI_COLOR_RESET,
                 );
-            },
+            }
         }
     }
 }
