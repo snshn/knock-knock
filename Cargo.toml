@@ -1,13 +1,15 @@
 [package]
 name = "knock-knock"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Sunshine <sunshine@uberspace.net>"]
+description = "CLI tool for obtaining internet domain information"
 edition = "2018"
+license = "CC0-1.0"
 
 [dependencies]
 chrono = "0.4.19"
 whois-rust = "1.2.4"
-whoisthere = { path = "../whoisthere.git" }
+whoisthere = "0.1.2"
 
 [dependencies.clap]
 version = "2.33.3"
