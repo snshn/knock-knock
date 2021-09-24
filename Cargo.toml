@@ -3,6 +3,8 @@ name = "knock-knock"
 version = "0.1.1"
 authors = ["Sunshine <sunshine@uberspace.net>"]
 description = "CLI tool for obtaining internet domain information"
+homepage = "https://github.com/snshn/knock-knock"
+repository = "https://github.com/snshn/knock-knock"
 edition = "2018"
 license = "CC0-1.0"
 
