@@ -54,7 +54,11 @@ fn compose_readable_duration(mut duration: Duration) -> String {
 
     let seconds_left = duration.num_seconds();
     if seconds_left > 0 {
-        vec.push(format!("{} {}", seconds_left, pluralize("second", seconds_left)));
+        vec.push(format!(
+            "{} {}",
+            seconds_left,
+            pluralize("second", seconds_left)
+        ));
     }
 
     vec.join(", ")
