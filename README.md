@@ -1,22 +1,26 @@
 # knock-knock
 
-CLI tool for obtaining domain name information
+CLI tool for obtaining and outputting domain name information in an easy-to-read format.
 
 
 ## How to use
 
 ```console
 knock-knock \
-    duckduckgo.com \
-    github.com
+    github.com \
+    gitlab.com
 ```
-
-#### Sample output
-
 ```
-duckduckgo.com:
-    Domain name will expire in 271 days, 19 hours, 25 minutes, 22 seconds
 github.com:
-    Domain name will expire in 380 days, 9 hours, 46 minutes, 13 seconds
+    Domain name will expire in 189 days
+gitlab.com:
+    Domain name will expire in 1018 days
+```
 
+```console
+knock-knock -f crates.io
+```
+```
+crates.io:
+    Domain name will expire in 294 days, 8 hours, 57 minutes, 11 seconds
 ```
