@@ -103,11 +103,7 @@ fn main() {
                 .short("c")
                 .long("check-certificates"),
         )
-        .arg(
-            Arg::with_name("fulltime")
-                .short("f")
-                .long("full-time"),
-        )
+        .arg(Arg::with_name("fulltime").short("f").long("full-time"))
         .arg(
             Arg::with_name("DOMAINS")
                 .help("Provides domain(s) to look up information for")
@@ -151,7 +147,10 @@ fn main() {
                                     "{}{}Domain name will expire in {}{}",
                                     INDENTATION,
                                     color,
-                                    compose_readable_duration(time_diff, matches.is_present("fulltime")),
+                                    compose_readable_duration(
+                                        time_diff,
+                                        matches.is_present("fulltime")
+                                    ),
                                     ANSI_COLOR_RESET,
                                 );
                             } else {
@@ -159,7 +158,10 @@ fn main() {
                                     "{}{}Domain name has expired {} ago{}",
                                     INDENTATION,
                                     color,
-                                    compose_readable_duration(time_diff, matches.is_present("fulltime")),
+                                    compose_readable_duration(
+                                        time_diff,
+                                        matches.is_present("fulltime")
+                                    ),
                                     ANSI_COLOR_RESET,
                                 );
                             }
