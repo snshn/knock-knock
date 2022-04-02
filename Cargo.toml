@@ -1,6 +1,6 @@
 [package]
 name = "knock-knock"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Sunshine <sunshine@uberspace.net>"]
 description = "CLI tool for obtaining internet domain information"
 homepage = "https://github.com/snshn/knock-knock"
