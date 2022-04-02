@@ -11,8 +11,8 @@ const ANSI_COLOR_RED: &'static str = "\x1b[31m";
 const ANSI_COLOR_GREEN: &'static str = "\x1b[32m";
 const ANSI_COLOR_YELLOW: &'static str = "\x1b[33m";
 const ANSI_COLOR_RESET: &'static str = "\x1b[0m";
-const EXPIRATION_WARNING: i64 = 2419200; // Number of seconds in 4 weeks
-const EXPIRATION_CRITICAL: i64 = 604800; // Number of seconds in 1 week
+const EXPIRATION_WARNING: i64 = 2419200; // Amount of seconds in 4 weeks
+const EXPIRATION_CRITICAL: i64 = 604800; // Amount of seconds in 1 week
 const INDENTATION: &'static str = "    ";
 
 fn pluralize(item_name: &str, quantity: i64) -> String {
@@ -23,7 +23,7 @@ fn pluralize(item_name: &str, quantity: i64) -> String {
     result
 }
 
-fn compose_readable_duration(mut duration: Duration) -> String {
+fn compose_readable_duration(mut duration: Duration, show_full_time: bool) -> String {
     let is_neg: bool = duration.num_milliseconds() < 0;
     if is_neg {
         duration = duration * -1;
@@ -31,16 +31,28 @@ fn compose_readable_duration(mut duration: Duration) -> String {
 
     let mut vec: Vec<String> = Vec::new();
 
-    let days = duration.num_days();
-    if days > 0 {
-        let days_str: String = format!("{} {}", days, pluralize("day", days));
+    // TODO: months, years
+
+    let days_left = duration.num_days();
+    if days_left > 0 {
+        let days_str: String = format!("{} {}", days_left, pluralize("day", days_left));
+
+        if !show_full_time {
+            return days_str;
+        }
+
         vec.push(days_str);
-        duration = duration - Duration::days(days);
+        duration = duration - Duration::days(days_left);
     }
 
     let hours_left = duration.num_hours();
     if hours_left > 0 {
         let hours_str: String = format!("{} {}", hours_left, pluralize("hour", hours_left));
+
+        if !show_full_time {
+            return hours_str;
+        }
+
         vec.push(hours_str);
         duration = duration - Duration::hours(hours_left);
     }
@@ -48,17 +60,24 @@ fn compose_readable_duration(mut duration: Duration) -> String {
     let minutes_left = duration.num_minutes();
     if minutes_left > 0 {
         let minutes_str: String = format!("{} {}", minutes_left, pluralize("minute", minutes_left));
+
+        if !show_full_time {
+            return minutes_str;
+        }
+
         vec.push(minutes_str);
         duration = duration - Duration::minutes(minutes_left);
     }
 
     let seconds_left = duration.num_seconds();
     if seconds_left > 0 {
-        vec.push(format!(
-            "{} {}",
-            seconds_left,
-            pluralize("second", seconds_left)
-        ));
+        let seconds_str: String = format!("{} {}", seconds_left, pluralize("second", seconds_left));
+
+        if !show_full_time {
+            return seconds_str;
+        }
+
+        vec.push(seconds_str);
     }
 
     vec.join(", ")
@@ -83,6 +102,11 @@ fn main() {
             Arg::with_name("certificates")
                 .short("c")
                 .long("check-certificates"),
+        )
+        .arg(
+            Arg::with_name("fulltime")
+                .short("f")
+                .long("full-time"),
         )
         .arg(
             Arg::with_name("DOMAINS")
@@ -127,7 +151,7 @@ fn main() {
                                     "{}Domain name will expire in {}{}{}",
                                     INDENTATION,
                                     color,
-                                    compose_readable_duration(time_diff),
+                                    compose_readable_duration(time_diff, matches.is_present("fulltime")),
                                     ANSI_COLOR_RESET,
                                 );
                             } else {
@@ -135,7 +159,7 @@ fn main() {
                                     "{}Domain name has expired {}{}{} ago",
                                     INDENTATION,
                                     color,
-                                    compose_readable_duration(time_diff),
+                                    compose_readable_duration(time_diff, matches.is_present("fulltime")),
                                     ANSI_COLOR_RESET,
                                 );
                             }
