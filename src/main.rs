@@ -148,7 +148,7 @@ fn main() {
                             }
                             if expiration_date >= now {
                                 println!(
-                                    "{}Domain name will expire in {}{}{}",
+                                    "{}{}Domain name will expire in {}{}",
                                     INDENTATION,
                                     color,
                                     compose_readable_duration(time_diff, matches.is_present("fulltime")),
@@ -156,7 +156,7 @@ fn main() {
                                 );
                             } else {
                                 println!(
-                                    "{}Domain name has expired {}{}{} ago",
+                                    "{}{}Domain name has expired {} ago{}",
                                     INDENTATION,
                                     color,
                                     compose_readable_duration(time_diff, matches.is_present("fulltime")),
