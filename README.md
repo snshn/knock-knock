@@ -16,6 +16,7 @@ github.com:
 gitlab.com:
     Domain name will expire in 1018 days
 ```
+or
 
 ```console
 knock-knock -f crates.io
