@@ -1,8 +1,5 @@
-#[macro_use]
-extern crate clap;
-
 use chrono::{DateTime, Duration, Utc};
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use std::env;
 use whois_rust::{WhoIs, WhoIsLookupOptions};
 use whoisthere::{parse_info, DomainProps};
@@ -94,21 +91,21 @@ pub fn get_domain_info(domain_name: &str) -> Result<DomainProps, std::fmt::Error
 }
 
 fn main() {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(crate_version!())
-        .author(format!("\n{}", crate_authors!("\n")).as_str())
-        .about(crate_description!())
+    let matches = Command::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(
-            Arg::with_name("certificates")
-                .short("c")
+            Arg::new("certificates")
+                .short('c')
                 .long("check-certificates"),
         )
-        .arg(Arg::with_name("fulltime").short("f").long("full-time"))
+        .arg(Arg::new("fulltime").short('f').long("full-time"))
         .arg(
-            Arg::with_name("DOMAINS")
+            Arg::new("DOMAINS")
                 .help("Provides domain(s) to look up information for")
                 .required(true)
-                .multiple(true)
+                .multiple_occurrences(true)
                 .index(1),
         )
         .get_matches();
