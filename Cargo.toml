@@ -2,18 +2,18 @@
 name = "knock-knock"
 version = "0.2.0"
 authors = ["Sunshine <sunshine@uberspace.net>"]
-description = "CLI tool for obtaining internet domain information"
+description = "CLI tool for obtaining and outputting domain name information in an easy-to-read format"
 homepage = "https://github.com/snshn/knock-knock"
 repository = "https://github.com/snshn/knock-knock"
-edition = "2018"
+edition = "2021"
 license = "CC0-1.0"
 
 [dependencies]
 chrono = "0.4.19"
-whois-rust = "1.3.3"
-whoisthere = "0.1.2"
+whois-rust = "1.5.0"
+whoisthere = "0.1.3"
 
 [dependencies.clap]
-version = "2.33.3"
+version = "2.34.0"
 default-features = false
 features = [ "suggestions" ]
