@@ -3,12 +3,27 @@
 CLI tool for obtaining and printing domain name information
 
 
-## How to use
+## Installation
+
+#### Using [Cargo](https://crates.io/crates/knock-knock) (cross-platform)
 
 ```console
-knock-knock \
-    github.com \
-    gitlab.com
+cargo install knock-knock
+```
+
+#### From [source](https://github.com/snshn/knock-knock)
+
+```console
+git clone https://github.com/snshn/knock-knock.git
+cd knock-knock
+make install
+```
+
+
+## Usage
+
+```console
+knock-knock github.com gitlab.com
 ```
 ```
 github.com:
