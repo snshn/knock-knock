@@ -134,87 +134,105 @@ async fn main() {
         .get_matches();
 
     let client: Client = Client::new();
-    let bootstrap: Bootstrap = client.fetch_bootstrap().await.unwrap();
 
-    let iterator = matches.values_of("DOMAINS");
-    for domain_name in iterator.unwrap() {
-        println!("{}:", domain_name);
+    match client.fetch_bootstrap().await {
+        Ok(bootstrap) => {
+            let iterator = matches.values_of("DOMAINS");
 
-        let result = check_domain(&client, &bootstrap, &domain_name).await;
-        match result {
-            Ok(response) => {
-                let mut found_expiration_date_info = false;
-                let mut expiration_date: DateTime<Utc> =
-                    DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
-                for event in response.events.into_iter() {
-                    // println!("{:?}", event);
-                    if event.event_action == EventAction::Expiration {
-                        expiration_date = event.event_date.with_timezone(&Utc);
-                        found_expiration_date_info = true;
-                        break;
-                    }
-                }
+            for domain_name in iterator.unwrap() {
+                println!("{}:", domain_name);
 
-                if found_expiration_date_info {
-                    let now: DateTime<Utc> = DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
-                    let time_diff: Duration = expiration_date - now;
+                let result = check_domain(&client, &bootstrap, &domain_name).await;
+                match result {
+                    Ok(response) => {
+                        let mut found_expiration_date_info = false;
+                        let mut expiration_date: DateTime<Utc> =
+                            DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
+                        for event in response.events.into_iter() {
+                            // println!("{:?}", event);
+                            if event.event_action == EventAction::Expiration {
+                                expiration_date = event.event_date.with_timezone(&Utc);
+                                found_expiration_date_info = true;
+                                break;
+                            }
+                        }
 
-                    let is_neg: bool = time_diff.num_milliseconds() < 0;
-                    let seconds: i64 = time_diff.num_seconds();
-                    let is_warning: bool = seconds <= EXPIRATION_WARNING;
-                    let is_critical: bool = seconds <= EXPIRATION_CRITICAL;
-                    let color;
+                        if found_expiration_date_info {
+                            let now: DateTime<Utc> =
+                                DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
+                            let time_diff: Duration = expiration_date - now;
 
-                    if is_neg {
-                        color = ANSI_COLOR_RED;
-                    } else {
-                        if is_warning {
-                            color = ANSI_COLOR_YELLOW;
-                        } else if is_critical {
-                            color = ANSI_COLOR_RED;
+                            let is_neg: bool = time_diff.num_milliseconds() < 0;
+                            let seconds: i64 = time_diff.num_seconds();
+                            let is_warning: bool = seconds <= EXPIRATION_WARNING;
+                            let is_critical: bool = seconds <= EXPIRATION_CRITICAL;
+                            let color;
+
+                            if is_neg {
+                                color = ANSI_COLOR_RED;
+                            } else {
+                                if is_warning {
+                                    color = ANSI_COLOR_YELLOW;
+                                } else if is_critical {
+                                    color = ANSI_COLOR_RED;
+                                } else {
+                                    color = ANSI_COLOR_GREEN;
+                                }
+                            }
+                            if expiration_date >= now {
+                                println!(
+                                    "{}{}Domain name will expire in {}{}",
+                                    INDENTATION,
+                                    color,
+                                    compose_readable_duration(
+                                        time_diff,
+                                        matches.is_present("fulltime")
+                                    ),
+                                    ANSI_COLOR_RESET,
+                                );
+                            } else {
+                                println!(
+                                    "{}{}Domain name has expired {} ago{}",
+                                    INDENTATION,
+                                    color,
+                                    compose_readable_duration(
+                                        time_diff,
+                                        matches.is_present("fulltime")
+                                    ),
+                                    ANSI_COLOR_RESET,
+                                );
+                            }
                         } else {
-                            color = ANSI_COLOR_GREEN;
+                            println!(
+                                "{}{}Unable to obtain domain name expiration date{}",
+                                INDENTATION, ANSI_COLOR_RED, ANSI_COLOR_RESET,
+                            );
                         }
                     }
-                    if expiration_date >= now {
-                        println!(
-                            "{}{}Domain name will expire in {}{}",
-                            INDENTATION,
-                            color,
-                            compose_readable_duration(time_diff, matches.is_present("fulltime")),
-                            ANSI_COLOR_RESET,
-                        );
-                    } else {
-                        println!(
-                            "{}{}Domain name has expired {} ago{}",
-                            INDENTATION,
-                            color,
-                            compose_readable_duration(time_diff, matches.is_present("fulltime")),
-                            ANSI_COLOR_RESET,
-                        );
-                    }
-                } else {
-                    println!(
-                        "{}{}Unable to obtain domain name expiration date{}",
-                        INDENTATION, ANSI_COLOR_RED, ANSI_COLOR_RESET,
-                    );
+                    Err(error) => match error {
+                        KnockKnockError::DomainNotFound => {
+                            println!(
+                                "{}{}Domain name not registered{}",
+                                INDENTATION, ANSI_COLOR_GREEN, ANSI_COLOR_RESET,
+                            );
+                        }
+                        _ => {
+                            println!(
+                                "{}{}Unable to retrieve domain name info{}",
+                                INDENTATION, ANSI_COLOR_RED, ANSI_COLOR_RESET,
+                            );
+                            continue;
+                        }
+                    },
                 }
             }
-            Err(error) => match error {
-                KnockKnockError::DomainNotFound => {
-                    println!(
-                        "{}{}Domain name not registered{}",
-                        INDENTATION, ANSI_COLOR_GREEN, ANSI_COLOR_RESET,
-                    );
-                }
-                _ => {
-                    println!(
-                        "{}{}Unable to retrieve domain name info{}",
-                        INDENTATION, ANSI_COLOR_RED, ANSI_COLOR_RESET,
-                    );
-                    continue;
-                }
-            },
+        }
+        Err(_) => {
+            println!(
+                "{}Unable to establish connection{}",
+                ANSI_COLOR_RED, ANSI_COLOR_RESET,
+            );
+            std::process::exit(1);
         }
     }
 }
