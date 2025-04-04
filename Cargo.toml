@@ -1,17 +1,17 @@
 [package]
 name = "knock-knock"
-version = "0.3.0"
-authors = ["Sunshine <sunshine@uberspace.net>"]
+version = "0.3.1"
+authors = ["Sunshine <snshn@tutanota.com>"]
 description = "CLI tool for obtaining and outputting domain name information in an easy-to-read format"
 homepage = "https://github.com/snshn/knock-knock"
 repository = "https://github.com/snshn/knock-knock"
-edition = "2021"
+edition = "2024"
 license = "CC0-1.0"
 
 [dependencies]
-chrono = "0.4.19"
+chrono = "0.4.40"
 rdap_client = "0.2.0"
-tokio = { version = "1.22.0", features = ["full"] }
+tokio = { version = "1.44.1", features = ["full"] }
 
 [dependencies.clap]
 version = "3.1.8"

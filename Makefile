@@ -7,23 +7,39 @@ build:
 	@cargo build --locked
 .PHONY: build
 
-test: build
-	@cargo test --locked
-	@cargo fmt --all -- --check
-.PHONY: build
+clean:
+	@cargo clean
+.PHONY: clean
 
-lint:
+format:
 	@cargo fmt --all --
-.PHONY: lint
+.PHONY: format
+
+format_check:
+	@cargo fmt --all -- --check
+.PHONY: format
 
 install:
 	@cargo install --force --locked --path .
 .PHONY: install
 
+lint:
+	@cargo clippy --fix --allow-dirty --allow-staged
+# 	@cargo fix --allow-dirty --allow-staged
+.PHONY: lint
+
+lint_check:
+	@cargo clippy --
+.PHONY: lint_check
+
 uninstall:
 	@cargo uninstall
 .PHONY: uninstall
 
-clean:
-	@cargo clean
+test: build
+	@cargo test --locked
+.PHONY: build
+
+update-lock-file:
+	@cargo update
 .PHONY: clean
