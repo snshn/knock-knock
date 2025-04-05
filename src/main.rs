@@ -118,6 +118,10 @@ fn compose_readable_duration(mut duration: Duration, show_full_time: bool) -> St
     vec.join(", ")
 }
 
+pub fn highlight_text(text: &str, color: &str) -> String {
+    format!("{}{}{}", color, text, ANSI_COLOR_RESET)
+}
+
 pub fn pluralize(item_name: &str, quantity: i64) -> String {
     let mut result = String::from(item_name);
 
@@ -155,8 +159,42 @@ async fn main() {
         Ok(bootstrap) => {
             let iterator = matches.values_of("DOMAINS");
 
-            for domain_name in iterator.unwrap() {
-                println!("{}:", domain_name);
+            let domain_names: Vec<&str> = iterator.unwrap().collect();
+            let mut i = 0;
+            let mut prev_i = 0;
+            let mut retry_count = 0;
+
+            while i < domain_names.len() {
+                let domain_name = domain_names[i];
+
+                if i == prev_i {
+                    retry_count = 0;
+                    println!("{}:", domain_name);
+                } else {
+                    retry_count += 1;
+                }
+
+                i += 1;
+                prev_i = i;
+
+                if retry_count >= 3 {
+                    // println!(
+                    //     "{}",
+                    //     &highlight_text(
+                    //         &format!("{}ERROR: Unable to retrieve domain name info", INDENTATION),
+                    //         ANSI_COLOR_RED
+                    //     ),
+                    // );
+                    println!(
+                        "{}",
+                        &highlight_text(
+                            &format!("{}Domain name not registered", INDENTATION),
+                            ANSI_COLOR_GREEN
+                        ),
+                    );
+
+                    continue;
+                }
 
                 let result = check_domain(&client, &bootstrap, domain_name).await;
                 match result {
@@ -176,64 +214,76 @@ async fn main() {
                             let now: DateTime<Utc> = Utc::now();
                             let time_diff: Duration = expiration_date - now;
 
-                            let is_neg: bool = time_diff.num_milliseconds() < 0;
+                            let has_already_expired: bool = time_diff.num_milliseconds() < 1;
                             let seconds: i64 = time_diff.num_seconds();
                             let is_warning: bool = seconds <= EXPIRATION_WARNING;
                             let is_critical: bool = seconds <= EXPIRATION_CRITICAL;
-                            let color;
-
-                            if is_neg {
-                                color = ANSI_COLOR_RED;
+                            let color = if has_already_expired {
+                                ANSI_COLOR_RED
                             } else if is_warning {
-                                color = ANSI_COLOR_YELLOW;
+                                ANSI_COLOR_YELLOW
                             } else if is_critical {
-                                color = ANSI_COLOR_RED;
+                                ANSI_COLOR_RED
                             } else {
-                                color = ANSI_COLOR_GREEN;
-                            }
+                                ANSI_COLOR_GREEN
+                            };
+
                             if expiration_date >= now {
                                 println!(
-                                    "{}{}Domain name will expire in {}{}",
-                                    INDENTATION,
-                                    color,
-                                    compose_readable_duration(
-                                        time_diff,
-                                        matches.is_present("fulltime")
+                                    "{}",
+                                    &highlight_text(
+                                        &format!(
+                                            "{}Domain name will expire in {}",
+                                            INDENTATION,
+                                            compose_readable_duration(
+                                                time_diff,
+                                                matches.is_present("fulltime")
+                                            )
+                                        ),
+                                        color
                                     ),
-                                    ANSI_COLOR_RESET,
                                 );
                             } else {
                                 println!(
-                                    "{}{}Domain name has expired {} ago{}",
-                                    INDENTATION,
-                                    color,
-                                    compose_readable_duration(
-                                        time_diff,
-                                        matches.is_present("fulltime")
+                                    "{}",
+                                    &highlight_text(
+                                        &format!(
+                                            "{}Domain name has expired {} ago",
+                                            INDENTATION,
+                                            compose_readable_duration(
+                                                time_diff,
+                                                matches.is_present("fulltime")
+                                            )
+                                        ),
+                                        color
                                     ),
-                                    ANSI_COLOR_RESET,
                                 );
                             }
                         } else {
                             println!(
-                                "{}{}ERROR: Unable to obtain domain name expiration date{}",
-                                INDENTATION, ANSI_COLOR_RED, ANSI_COLOR_RESET,
+                                "{}",
+                                &highlight_text(
+                                    &format!(
+                                        "{}ERROR: Unable to obtain domain name expiration date",
+                                        INDENTATION
+                                    ),
+                                    ANSI_COLOR_RED
+                                ),
                             );
                         }
                     }
                     Err(error) => match error {
                         KnockKnockError::DomainNotFound => {
                             println!(
-                                "{}{}Domain name not registered{}",
-                                INDENTATION, ANSI_COLOR_GREEN, ANSI_COLOR_RESET,
+                                "{}",
+                                &highlight_text(
+                                    &format!("{}Domain name not registered", INDENTATION),
+                                    ANSI_COLOR_GREEN
+                                ),
                             );
                         }
                         _ => {
-                            println!(
-                                "{}{}ERROR: Unable to retrieve domain name info{}",
-                                INDENTATION, ANSI_COLOR_RED, ANSI_COLOR_RESET,
-                            );
-                            continue;
+                            i -= 1;
                         }
                     },
                 }
@@ -241,8 +291,11 @@ async fn main() {
         }
         Err(_) => {
             println!(
-                "{}ERROR: Unable to establish connection{}",
-                ANSI_COLOR_RED, ANSI_COLOR_RESET,
+                "{}",
+                &highlight_text(
+                    &format!("{}ERROR: Unable to establish connection", INDENTATION),
+                    ANSI_COLOR_RED
+                ),
             );
             std::process::exit(1);
         }
