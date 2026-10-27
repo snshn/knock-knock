@@ -79,13 +79,25 @@ pub fn pluralize(item_name: &str, quantity: u64) -> String {
     result
 }
 
-/// Extracts host part out of whatever the user has provided,
-/// e.g. "https://user@Example.com:8080/path?q#f" -> "Example.com"
-pub fn extract_host(input: &str) -> Option<&str> {
-    let mut host: &str = input.trim();
+/// Parts of user input relevant for checks
+#[derive(Debug, Eq, PartialEq)]
+pub struct InputParts<'a> {
+    /// Scheme in lowercase, e.g. "https" or "gemini"
+    pub scheme: Option<String>,
+    pub host: &'a str,
+    pub port: Option<u16>,
+}
 
-    // Drop scheme (e.g. "https://")
-    if let Some((_, rest)) = host.split_once("://") {
+/// Splits whatever the user has provided into scheme, host and port,
+/// e.g. "HTTPS://user@Example.com:8080/path?q#f" -> ("https", "Example.com", 8080)
+pub fn split_input(input: &str) -> Option<InputParts<'_>> {
+    let mut host: &str = input.trim();
+    let mut scheme: Option<String> = None;
+    let mut port: Option<u16> = None;
+
+    // Scheme (e.g. "https://")
+    if let Some((scheme_part, rest)) = host.split_once("://") {
+        scheme = Some(scheme_part.to_ascii_lowercase());
         host = rest;
     }
 
@@ -99,18 +111,29 @@ pub fn extract_host(input: &str) -> Option<&str> {
         host = rest;
     }
 
-    // Drop port number (e.g. ":8080")
-    if let Some((rest, _)) = host
+    // Port number (e.g. ":8080")
+    if let Some((rest, port_part)) = host
         .rsplit_once(':')
-        .filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit()))
+        .filter(|(_, port_part)| port_part.chars().all(|c| c.is_ascii_digit()))
     {
         host = rest;
+        port = port_part.parse().ok().filter(|&port: &u16| port != 0);
     }
 
     // Drop trailing dot(s) of fully qualified domain names (e.g. "example.com.")
     host = host.trim_end_matches('.');
 
-    if host.is_empty() { None } else { Some(host) }
+    if host.is_empty() {
+        None
+    } else {
+        Some(InputParts { scheme, host, port })
+    }
+}
+
+/// Extracts host part out of whatever the user has provided,
+/// e.g. "https://user@Example.com:8080/path?q#f" -> "Example.com"
+pub fn extract_host(input: &str) -> Option<&str> {
+    split_input(input).map(|parts| parts.host)
 }
 
 /// Checks if given (already lowercased and Punycode-encoded) domain name is valid
@@ -215,6 +238,46 @@ mod tests {
         assert!(!should_use_colors(true, Some(OsStr::new("1"))));
         assert!(!should_use_colors(false, None));
         assert!(!should_use_colors(false, Some(OsStr::new("1"))));
+    }
+
+    #[test]
+    fn split_input_scheme_and_port() {
+        assert_eq!(
+            split_input("HTTPS://user@Example.com:8443/path"),
+            Some(InputParts {
+                scheme: Some("https".to_string()),
+                host: "Example.com",
+                port: Some(8443),
+            })
+        );
+        assert_eq!(
+            split_input("gemini://geminiprotocol.net/"),
+            Some(InputParts {
+                scheme: Some("gemini".to_string()),
+                host: "geminiprotocol.net",
+                port: None,
+            })
+        );
+        assert_eq!(
+            split_input("example.com"),
+            Some(InputParts {
+                scheme: None,
+                host: "example.com",
+                port: None,
+            })
+        );
+    }
+
+    #[test]
+    fn split_input_invalid_port() {
+        // Empty, zero, or out of range port numbers are ignored
+        assert_eq!(split_input("example.com:").unwrap().port, None);
+        assert_eq!(split_input("example.com:0").unwrap().port, None);
+        assert_eq!(split_input("example.com:99999").unwrap().port, None);
+        assert_eq!(
+            split_input("example.com:99999").unwrap().host,
+            "example.com"
+        );
     }
 
     #[test]
