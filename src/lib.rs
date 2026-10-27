@@ -1,4 +1,5 @@
-//! Obtains domain name expiration info via RDAP, and TLS certificate expiration info.
+//! Obtains domain name expiration info via RDAP (or Ethereum for ENS names),
+//! and TLS certificate expiration info.
 //!
 //! Used internally by the knock-knock CLI tool, not (yet) meant to be a stable public API.
 
@@ -15,6 +16,8 @@ use std::error::Error;
 use std::fmt;
 use std::time::Duration;
 
+pub mod ens;
+pub mod keccak;
 pub mod tls;
 pub mod utils;
 pub mod x509;
@@ -39,6 +42,12 @@ pub enum KnockKnockError {
     CouldntParseCertificate,
     /// Server responded with data that could not be parsed
     CouldntParseData,
+    /// Ethereum JSON-RPC endpoint responded with an error
+    EthRpcError(String),
+    /// Ethereum JSON-RPC endpoint responded with unexpected HTTP status code
+    EthRpcHttpStatus(u16),
+    /// Ethereum JSON-RPC endpoint could not be reached
+    EthRpcUnreachable(String),
     /// Provided input doesn't look like a domain name
     InvalidDomainName,
     /// Request did not go through (no connection, timeout, DNS failure, etc)
@@ -60,14 +69,16 @@ impl KnockKnockError {
     pub fn is_transient(&self) -> bool {
         match self {
             KnockKnockError::BootstrapUnavailable(_)
+            | KnockKnockError::EthRpcUnreachable(_)
             | KnockKnockError::NetworkRequestGlitch(_)
             | KnockKnockError::TlsConnectionFailed(_) => true,
-            KnockKnockError::BadServerResponse(status) | KnockKnockError::RdapError(status) => {
-                *status == 429 || *status >= 500
-            }
+            KnockKnockError::BadServerResponse(status)
+            | KnockKnockError::EthRpcHttpStatus(status)
+            | KnockKnockError::RdapError(status) => *status == 429 || *status >= 500,
             KnockKnockError::ClientProblem(_)
             | KnockKnockError::CouldntParseCertificate
             | KnockKnockError::CouldntParseData
+            | KnockKnockError::EthRpcError(_)
             | KnockKnockError::InvalidDomainName
             | KnockKnockError::NoCertificatePresented
             | KnockKnockError::NoRdapServerForTld
@@ -95,6 +106,23 @@ impl fmt::Display for KnockKnockError {
             }
             KnockKnockError::CouldntParseData => {
                 write!(f, "Unable to parse data returned by RDAP server")
+            }
+            KnockKnockError::EthRpcError(message) => {
+                write!(
+                    f,
+                    "Ethereum RPC endpoint responded with error ({})",
+                    message
+                )
+            }
+            KnockKnockError::EthRpcHttpStatus(status) => {
+                write!(
+                    f,
+                    "Ethereum RPC endpoint responded with HTTP status {}",
+                    status
+                )
+            }
+            KnockKnockError::EthRpcUnreachable(details) => {
+                write!(f, "Unable to reach Ethereum RPC endpoint ({})", details)
             }
             KnockKnockError::InvalidDomainName => write!(f, "Invalid domain name"),
             KnockKnockError::NetworkRequestGlitch(details) => {
@@ -126,7 +154,7 @@ impl Error for KnockKnockError {}
 pub struct Target {
     /// Lowercase ASCII host name, e.g. "www.xn--bcher-kva.de"
     pub host: String,
-    /// Registrable domain name of the host, e.g. "xn--bcher-kva.de"
+    /// Registrable domain name of the host, e.g. "xn--bcher-kva.de" (or "vitalik.eth" for ENS names)
     pub domain: String,
     /// Lowercase scheme, if given (e.g. "https")
     pub scheme: Option<String>,
@@ -146,7 +174,11 @@ impl Target {
             return Err(KnockKnockError::InvalidDomainName);
         }
 
-        let domain: String = registrable_domain_name(&host);
+        let domain: String = if ens::is_ens_name(&host) {
+            ens::registrable_ens_name(&host).ok_or(KnockKnockError::InvalidDomainName)?
+        } else {
+            registrable_domain_name(&host)
+        };
 
         Ok(Target {
             host,
@@ -154,6 +186,11 @@ impl Target {
             scheme,
             port,
         })
+    }
+
+    /// Whether this is an ENS (.eth) name, rather than a DNS domain name
+    pub fn is_ens(&self) -> bool {
+        ens::is_ens_name(&self.host)
     }
 
     /// Whether this is a Gemini (or Titan) target, where self-signed certificates
@@ -164,6 +201,11 @@ impl Target {
 
     /// Port to check TLS certificate on, None if it can't be checked for given scheme
     pub fn tls_port(&self) -> Option<u16> {
+        // ENS names don't resolve via DNS (without a gateway), so there's no server to connect to
+        if self.is_ens() {
+            return None;
+        }
+
         match self.scheme.as_deref() {
             None | Some("https") | Some("wss") => Some(self.port.unwrap_or(HTTPS_PORT)),
             // Plain HTTP port is of no use, the same host's HTTPS one is what matters
@@ -231,6 +273,8 @@ pub enum Registration {
     /// Domain name is registered (expiration date is missing if registry didn't provide it)
     Registered {
         expires: Option<DateTime<Utc>>,
+        /// Until when (expired) name can still be renewed by its owner, if known
+        grace_period_ends: Option<DateTime<Utc>>,
     },
     NotRegistered,
 }
@@ -257,6 +301,7 @@ fn classify_response(response: ResponseData) -> Result<Registration, KnockKnockE
     match response.rdap {
         RdapResponse::Domain(domain) => Ok(Registration::Registered {
             expires: expiration_date(&domain),
+            grace_period_ends: None,
         }),
         RdapResponse::ErrorResponse(error) => {
             let code: u16 = match error.error_code() {
@@ -455,6 +500,17 @@ mod tests {
         assert_eq!(port("gemini://example.com:1966/"), Some(1966));
         assert_eq!(port("titan://example.com/upload"), Some(1965));
         assert_eq!(port("gopher://example.com"), None);
+        assert_eq!(port("vitalik.eth"), None);
+    }
+
+    #[test]
+    fn parse_ens_target() {
+        let target: Target = Target::parse("pay.Vitalik.eth").unwrap();
+
+        assert_eq!(target.host, "pay.vitalik.eth");
+        assert_eq!(target.domain, "vitalik.eth");
+        assert!(target.is_ens());
+        assert!(!Target::parse("ethereum.org").unwrap().is_ens());
     }
 
     #[test]

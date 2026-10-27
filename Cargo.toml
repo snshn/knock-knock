@@ -15,6 +15,7 @@ icann-rdap-client = "1.0.1"
 icann-rdap-common = "1.0.1"
 idna = "1.0.3"
 psl = "2.1.245"
+reqwest = "0.13.5"
 rustls = { version = "0.23.45", default-features = false, features = ["std", "tls12", "aws-lc-rs"] }
 rustls-platform-verifier = "0.7.0"
 serde_json = "1.0.151"
@@ -24,4 +25,4 @@ tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls1
 [dependencies.clap]
 version = "3.1.8"
 default-features = false
-features = [ "std", "suggestions" ]
+features = [ "env", "std", "suggestions" ]
