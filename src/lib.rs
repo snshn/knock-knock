@@ -11,7 +11,7 @@ use icann_rdap_client::prelude::{
 };
 use icann_rdap_client::rdap::ResponseData;
 use icann_rdap_common::iana::IanaRegistryType;
-use icann_rdap_common::response::{Domain, ObjectCommonFields, RdapResponse};
+use icann_rdap_common::response::{Domain, Entity, ObjectCommonFields, RdapResponse};
 use std::error::Error;
 use std::fmt;
 use std::time::Duration;
@@ -275,22 +275,136 @@ pub enum Registration {
         expires: Option<DateTime<Utc>>,
         /// Until when (expired) name can still be renewed by its owner, if known
         grace_period_ends: Option<DateTime<Utc>>,
+        /// Everything else known about the registration
+        details: Box<RegistrationDetails>,
     },
     NotRegistered,
 }
 
-/// Finds expiration date among domain name's events
-fn expiration_date(domain: &Domain) -> Option<DateTime<Utc>> {
+/// Registrar, as listed in the registration record
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Registrar {
+    pub name: Option<String>,
+    /// IANA-assigned registrar ID (only for gTLD registrars)
+    pub iana_id: Option<String>,
+    pub abuse_email: Option<String>,
+    pub abuse_phone: Option<String>,
+}
+
+/// Additional info obtained from the registration record (whatever the registry provides)
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct RegistrationDetails {
+    pub registered: Option<DateTime<Utc>>,
+    pub last_changed: Option<DateTime<Utc>>,
+    /// EPP status codes, e.g. "client transfer prohibited"
+    pub statuses: Vec<String>,
+    /// Lowercase host names of the name servers the domain name is delegated to
+    pub nameservers: Vec<String>,
+    /// Whether the delegation is signed (DNSSEC)
+    pub dnssec: Option<bool>,
+    pub registrar: Option<Registrar>,
+    /// Legacy WHOIS server
+    pub whois_server: Option<String>,
+    /// Owner's address (for blockchain-based names)
+    pub owner: Option<String>,
+    /// Resolver contract's address (for ENS names, it's what name servers are for DNS)
+    pub resolver: Option<String>,
+}
+
+/// Finds date of given event among domain name's events
+fn event_date(domain: &Domain, action: &str) -> Option<DateTime<Utc>> {
     domain
         .events()
         .iter()
         .filter(|event| {
             event
                 .event_action()
-                .is_some_and(|action| action.eq_ignore_ascii_case("expiration"))
+                .is_some_and(|event_action| event_action.eq_ignore_ascii_case(action))
         })
         .find_map(|event| DateTime::parse_from_rfc3339(event.event_date()?).ok())
         .map(|date| date.with_timezone(&Utc))
+}
+
+fn has_role(entity: &Entity, role: &str) -> bool {
+    entity
+        .roles()
+        .iter()
+        .any(|entity_role| entity_role.eq_ignore_ascii_case(role))
+}
+
+/// Pulls registrar info out of domain's entities
+fn find_registrar(domain: &Domain) -> Option<Registrar> {
+    let registrar: &Entity = domain
+        .entities()
+        .iter()
+        .find(|entity| has_role(entity, "registrar"))?;
+    let contact = registrar.contact();
+
+    let name: Option<String> = contact.as_ref().and_then(|contact| {
+        contact
+            .full_name()
+            .or_else(|| contact.organization_names().first().map(String::as_str))
+            .map(str::to_string)
+    });
+    let iana_id: Option<String> = registrar
+        .public_ids()
+        .iter()
+        .find(|public_id| {
+            public_id
+                .id_type()
+                .is_some_and(|id_type| id_type.eq_ignore_ascii_case("IANA Registrar ID"))
+        })
+        .and_then(|public_id| public_id.identifier())
+        .map(str::to_string);
+
+    // Abuse contact is normally nested within registrar entity, but may also be top-level
+    let abuse_contact = registrar
+        .entities()
+        .iter()
+        .chain(domain.entities().iter())
+        .find(|entity| has_role(entity, "abuse"))
+        .and_then(Entity::contact);
+    let abuse_email: Option<String> = abuse_contact
+        .as_ref()
+        .and_then(|contact| contact.email())
+        .map(|email| email.email().to_string());
+    let abuse_phone: Option<String> = abuse_contact
+        .as_ref()
+        .and_then(|contact| contact.phone())
+        // vCard phone numbers often come as URIs (e.g. "tel:+1.2083895740")
+        .map(|phone| phone.phone().trim_start_matches("tel:").to_string());
+
+    Some(Registrar {
+        name,
+        iana_id,
+        abuse_email,
+        abuse_phone,
+    })
+}
+
+/// Collects whatever useful info is present in RDAP domain object
+fn registration_details(domain: &Domain) -> RegistrationDetails {
+    let mut nameservers: Vec<String> = domain
+        .nameservers()
+        .iter()
+        .filter_map(|nameserver| nameserver.ldh_name())
+        .map(|name| name.trim_end_matches('.').to_ascii_lowercase())
+        .collect();
+    nameservers.dedup();
+
+    RegistrationDetails {
+        registered: event_date(domain, "registration"),
+        last_changed: event_date(domain, "last changed"),
+        statuses: domain.status().to_vec(),
+        nameservers,
+        dnssec: domain
+            .secure_dns()
+            .and_then(|secure_dns| secure_dns.delegation_signed()),
+        registrar: find_registrar(domain),
+        whois_server: domain.port_43().map(|port_43| port_43.to_string()),
+        owner: None,
+        resolver: None,
+    }
 }
 
 /// Sorts out which responses mean "this domain name is not registered"
@@ -300,8 +414,9 @@ fn classify_response(response: ResponseData) -> Result<Registration, KnockKnockE
 
     match response.rdap {
         RdapResponse::Domain(domain) => Ok(Registration::Registered {
-            expires: expiration_date(&domain),
+            expires: event_date(&domain, "expiration"),
             grace_period_ends: None,
+            details: Box::new(registration_details(&domain)),
         }),
         RdapResponse::ErrorResponse(error) => {
             let code: u16 = match error.error_code() {

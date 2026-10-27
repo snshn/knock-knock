@@ -13,8 +13,8 @@ use knock_knock::utils::{
     expiration_color, highlight_text, should_use_colors,
 };
 use knock_knock::{
-    GEMINI_PORT, HTTPS_PORT, KnockKnockError, RdapChecker, Registration, Target,
-    display_domain_name,
+    GEMINI_PORT, HTTPS_PORT, KnockKnockError, RdapChecker, Registration, RegistrationDetails,
+    Target, display_domain_name,
 };
 
 const INDENTATION: &str = "    ";
@@ -43,6 +43,7 @@ fn describe_registration(
         Ok(Registration::Registered {
             expires: Some(expires),
             grace_period_ends,
+            ..
         }) => {
             let seconds_left: i64 = (*expires - now).num_seconds();
             let readable_duration = compose_readable_duration(seconds_left, show_full_time);
@@ -163,6 +164,33 @@ fn format_timestamp(timestamp: &DateTime<Utc>) -> String {
     timestamp.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
+/// Adds whatever is known about the registration (besides expiration) to its JSON representation
+fn add_details_to_json(registration: &mut Value, details: &RegistrationDetails) {
+    let timestamp = |timestamp: &Option<DateTime<Utc>>| timestamp.as_ref().map(format_timestamp);
+
+    registration["registered"] = json!(timestamp(&details.registered));
+    registration["last_changed"] = json!(timestamp(&details.last_changed));
+    registration["statuses"] = json!(details.statuses);
+    registration["nameservers"] = json!(details.nameservers);
+    registration["dnssec"] = json!(details.dnssec);
+    registration["registrar"] = match &details.registrar {
+        Some(registrar) => json!({
+            "name": registrar.name,
+            "iana_id": registrar.iana_id,
+            "abuse_email": registrar.abuse_email,
+            "abuse_phone": registrar.abuse_phone,
+        }),
+        None => Value::Null,
+    };
+    registration["whois_server"] = json!(details.whois_server);
+    if let Some(owner) = &details.owner {
+        registration["owner"] = json!(owner);
+    }
+    if let Some(resolver) = &details.resolver {
+        registration["resolver"] = json!(resolver);
+    }
+}
+
 /// Returns JSON representation of registration info, and whether it is an error
 fn registration_to_json(
     result: &Result<Registration, KnockKnockError>,
@@ -170,29 +198,25 @@ fn registration_to_json(
 ) -> (Value, bool) {
     match result {
         Ok(Registration::Registered {
-            expires: Some(expires),
+            expires,
             grace_period_ends,
+            details,
         }) => {
             let mut registration: Value = json!({
                 "status": "registered",
-                "expires": format_timestamp(expires),
-                "seconds_left": (*expires - *now).num_seconds(),
+                "expires": expires.as_ref().map(format_timestamp),
+                "seconds_left": expires.map(|expires| (expires - *now).num_seconds()),
             });
             if let Some(grace_period_ends) = grace_period_ends {
                 registration["grace_period_ends"] = json!(format_timestamp(grace_period_ends));
             }
+            if expires.is_none() {
+                registration["error"] = json!("Unable to obtain expiration date");
+            }
+            add_details_to_json(&mut registration, details);
 
-            (registration, false)
+            (registration, expires.is_none())
         }
-        Ok(Registration::Registered { expires: None, .. }) => (
-            json!({
-                "status": "registered",
-                "expires": null,
-                "seconds_left": null,
-                "error": "Unable to obtain domain name expiration date",
-            }),
-            true,
-        ),
         Ok(Registration::NotRegistered) => (json!({ "status": "not_registered" }), false),
         Err(error) => (
             json!({
