@@ -1,6 +1,6 @@
 [package]
 name = "knock-knock"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Sunshine <snshn@tutanota.com>"]
 description = "CLI tool for obtaining and outputting domain name information in an easy-to-read format"
 homepage = "https://github.com/snshn/knock-knock"
@@ -14,7 +14,12 @@ futures = "0.3.31"
 icann-rdap-client = "1.0.1"
 icann-rdap-common = "1.0.1"
 idna = "1.0.3"
+psl = "2.1.245"
+rustls = { version = "0.23.45", default-features = false, features = ["std", "tls12", "aws-lc-rs"] }
+rustls-platform-verifier = "0.7.0"
+serde_json = "1.0.151"
 tokio = { version = "1.44.1", features = ["full"] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12"] }
 
 [dependencies.clap]
 version = "3.1.8"
