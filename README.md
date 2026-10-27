@@ -107,16 +107,43 @@ knock-knock --json github.com
     "host": "github.com",
     "domain": "github.com",
     "scheme": null,
+    "naming_system": "dns",
     "registration": {
       "status": "registered",
       "expires": "2027-10-09T18:20:50Z",
-      "seconds_left": 29981430
+      "seconds_left": 29981430,
+      "registered": "2007-10-09T18:20:50Z",
+      "last_changed": "2025-09-07T09:18:27Z",
+      "statuses": [
+        "client delete prohibited",
+        "client transfer prohibited",
+        "client update prohibited"
+      ],
+      "nameservers": [
+        "dns1.p08.nsone.net",
+        "dns2.p08.nsone.net",
+        "ns-1283.awsdns-32.org",
+        "ns-1707.awsdns-21.co.uk"
+      ],
+      "dnssec": false,
+      "registrar": {
+        "name": "MarkMonitor Inc.",
+        "iana_id": "292",
+        "abuse_email": "abusecomplaints@markmonitor.com",
+        "abuse_phone": "+1.2086851750"
+      },
+      "whois_server": null
     }
   }
 ]
 ```
 
 `status` is one of `registered`, `not_registered` or `error` (with `error` containing the reason).
+For registered names, whatever else the registry provides is included as well (registration date,
+[EPP status codes](https://icann.org/epp), name servers, DNSSEC, registrar and its abuse contact);
+fields are `null` (or empty) when the registry doesn't provide them.
+For ENS names, the owner's address (looking through ENS's NameWrapper for wrapped names)
+and the resolver contract's address are included as `owner` and `resolver`.
 With `-c`, each object also has a `certificate` member (`status` being `checked`, `not_applicable` or `error`),
 containing `host`, `port`, `not_before`, `expires`, `seconds_left`, `self_signed`, `trusted` and `verification_error`.
 
