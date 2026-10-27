@@ -41,6 +41,27 @@ crates.io:
     Domain name will expire in 294 days, 8 hours, 57 minutes, 11 seconds
 ```
 
+URLs and internationalized domain names are accepted too:
+
+```console
+knock-knock https://www.rust-lang.org/learn bücher.de
+```
+
+Domain names are checked concurrently, but results are always printed
+in the order they were given.
+
+Expiration info is shown in green, in yellow when the domain name expires
+within 4 weeks, and in red when it expires within a week (or has already expired).
+Colors are disabled when output is not a terminal, or when the
+[`NO_COLOR`](https://no-color.org) environment variable is set.
+
+#### Exit status
+
+| Code | Meaning                                                              |
+|------|----------------------------------------------------------------------|
+| `0`  | All domain names were checked successfully                           |
+| `1`  | Information for at least one domain name could not be obtained       |
+
 ## Disclaimer
 
 This tool should not be used as the ultimate source of truth when it comes to
