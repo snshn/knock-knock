@@ -47,6 +47,24 @@ URLs and internationalized domain names are accepted too:
 knock-knock https://www.rust-lang.org/learn bücher.de
 ```
 
+ENS (`.eth`) names are supported too, their expiration info is read directly from
+Ethereum (ENS's .eth registrar contract) via a JSON-RPC endpoint:
+
+```console
+knock-knock vitalik.eth
+```
+```
+vitalik.eth:
+    ENS name will expire in 2918 days
+```
+
+Once expired, ENS names have a 90-day grace period during which only their owner can renew them,
+knock-knock shows how much of it is left.
+
+By default `https://ethereum-rpc.publicnode.com` is used, a different endpoint
+(e.g. your own node) can be set with `--eth-rpc-url` or the `ETH_RPC_URL` environment variable.
+Keep in mind that the endpoint gets to see which names are being looked up.
+
 TLS certificates can be checked as well, using `-c`:
 
 ```console

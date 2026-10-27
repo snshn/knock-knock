@@ -958,6 +958,7 @@ dependencies = [
  "icann-rdap-common",
  "idna",
  "psl",
+ "reqwest",
  "rustls",
  "rustls-platform-verifier",
  "serde_json",
