@@ -1,0 +1,17 @@
+{
+    "actorSpecification": 1,
+    "name": "knock-knock",
+    "title": "Domain Expiration Checker (RDAP, TLS certificates, ENS)",
+    "description": "Checks when domain names, TLS certificates and ENS (.eth) names expire, and returns registrar, name servers, EPP statuses and DNSSEC info from official RDAP registration records.",
+    "version": "0.4",
+    "buildTag": "latest",
+    "dockerfile": "./Dockerfile",
+    "dockerContextDir": "../",
+    "readme": "./README.md",
+    "input": "./input_schema.json",
+    "storages": {
+        "dataset": "./dataset_schema.json"
+    },
+    "minMemoryMbytes": 128,
+    "defaultMemoryMbytes": 256
+}

@@ -1,0 +1,38 @@
+{
+    "title": "knock-knock input",
+    "description": "Domain names (or URLs) to check. Expiration info comes from official registration records (RDAP), or straight from Ethereum for ENS (.eth) names.",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "domains": {
+            "title": "Domain names",
+            "type": "array",
+            "description": "Domain names, URLs or ENS names to check, e.g. example.com, https://www.example.co.uk/page, gemini://example.org or vitalik.eth. Subdomains are checked via their registrable domain name.",
+            "editor": "stringList",
+            "prefill": ["github.com", "example.co.uk", "vitalik.eth"],
+            "minItems": 1
+        },
+        "checkCertificates": {
+            "title": "Check TLS certificates",
+            "type": "boolean",
+            "description": "Also connect to each host and check when its TLS certificate expires, and whether it's trusted (port 443, the port from the given URL, or 1965 for gemini:// URLs).",
+            "default": false
+        },
+        "warnDays": {
+            "title": "Needs attention within (days)",
+            "type": "integer",
+            "description": "Results are marked with needs_attention = true when the domain name or certificate expires within this many days (or a check fails). Handy for filtering results in integrations and webhooks.",
+            "minimum": 0,
+            "maximum": 3650,
+            "default": 30
+        },
+        "ethRpcUrl": {
+            "sectionCaption": "Advanced",
+            "title": "Ethereum JSON-RPC endpoint",
+            "type": "string",
+            "description": "Used for looking up ENS (.eth) names. Defaults to https://ethereum-rpc.publicnode.com. Note that this is stored as part of the run's input, so avoid URLs containing private API keys.",
+            "editor": "textfield"
+        }
+    },
+    "required": ["domains"]
+}

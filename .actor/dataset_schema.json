@@ -1,0 +1,63 @@
+{
+    "actorSpecification": 1,
+    "fields": {
+        "type": "object",
+        "properties": {
+            "input": { "type": "string", "description": "Name as given in the input" },
+            "host": { "type": ["string", "null"], "description": "Normalized (lowercase, Punycode) host name" },
+            "domain": { "type": ["string", "null"], "description": "Registrable domain name that was checked" },
+            "scheme": { "type": ["string", "null"], "description": "Scheme of the given URL, if any" },
+            "naming_system": { "type": ["string", "null"], "enum": ["dns", "ens", null] },
+            "registration": { "type": "object", "description": "Registration info, as output by knock-knock --json" },
+            "certificate": { "type": "object", "description": "TLS certificate info, present when certificates are checked" },
+            "registration_status": { "type": ["string", "null"], "enum": ["registered", "not_registered", "error", null] },
+            "expires": { "type": ["string", "null"], "description": "Registration expiration timestamp (RFC 3339)" },
+            "days_left": { "type": ["integer", "null"], "description": "Days until registration expires (negative if already expired)" },
+            "registrar": { "type": ["string", "null"] },
+            "nameservers": { "type": "array", "items": { "type": "string" } },
+            "certificate_expires": { "type": ["string", "null"], "description": "TLS certificate expiration timestamp (RFC 3339)" },
+            "certificate_days_left": { "type": ["integer", "null"] },
+            "certificate_trusted": { "type": ["boolean", "null"] },
+            "needs_attention": { "type": "boolean", "description": "Expires within the configured number of days, or a check failed" },
+            "error": { "type": ["string", "null"] }
+        },
+        "required": ["input", "registration", "needs_attention"]
+    },
+    "views": {
+        "overview": {
+            "title": "Overview",
+            "description": "Expiration at a glance",
+            "transformation": {
+                "fields": [
+                    "input",
+                    "registration_status",
+                    "expires",
+                    "days_left",
+                    "registrar",
+                    "nameservers",
+                    "certificate_expires",
+                    "certificate_days_left",
+                    "certificate_trusted",
+                    "needs_attention",
+                    "error"
+                ]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "input": { "label": "Name", "format": "text" },
+                    "registration_status": { "label": "Status", "format": "text" },
+                    "expires": { "label": "Expires", "format": "date" },
+                    "days_left": { "label": "Days left", "format": "number" },
+                    "registrar": { "label": "Registrar", "format": "text" },
+                    "nameservers": { "label": "Name servers", "format": "array" },
+                    "certificate_expires": { "label": "Certificate expires", "format": "date" },
+                    "certificate_days_left": { "label": "Certificate days left", "format": "number" },
+                    "certificate_trusted": { "label": "Certificate trusted", "format": "boolean" },
+                    "needs_attention": { "label": "Needs attention", "format": "boolean" },
+                    "error": { "label": "Error", "format": "text" }
+                }
+            }
+        }
+    }
+}
